@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ATAD Document Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --bg:#eef0f3; --panel:#ffffff; --panel-2:#f6f7f9;
+    --ink:#1a2230; --ink-soft:#586277; --ink-faint:#8a93a6;
+    --line:#dde1e8; --line-strong:#c7cdd8;
+    --accent:#1f5fbf; --accent-soft:#e7effb;
+    --s-notdue-bg:#eceef2;   --s-notdue-ink:#6a7488;
+    --s-awaiting-bg:#e7effb; --s-awaiting-ink:#1f5fbf;
+    --s-received-bg:#d9f2ee; --s-received-ink:#0d7c6b;
+    --s-review-bg:#fdf0d8;   --s-review-ink:#9a6a06;
+    --s-returned-bg:#fde3dd; --s-returned-ink:#b23a26;
+    --s-sent-bg:#dcf1de;     --s-sent-ink:#237a3a;
+    --s-closed-bg:#cfe6d4;   --s-closed-ink:#2e6b40;
+    --overdue:#c62b1a; --duesoon:#b07d0a;
+    --shadow:0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.05);
+    color-scheme:light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#11151c; --panel:#1a1f28; --panel-2:#20262f;
+      --ink:#e8ecf3; --ink-soft:#a6afc0; --ink-faint:#727d90;
+      --line:#2b323d; --line-strong:#3a424f;
+      --accent:#5b9bff; --accent-soft:#1d2a3f;
+      --s-notdue-bg:#262c36;   --s-notdue-ink:#9aa4b6;
+      --s-awaiting-bg:#1d2a3f; --s-awaiting-ink:#7bb0ff;
+      --s-received-bg:#123830; --s-received-ink:#4fd0b8;
+      --s-review-bg:#3a2f12;   --s-review-ink:#e6b64d;
+      --s-returned-bg:#3d201a; --s-returned-ink:#f0937e;
+      --s-sent-bg:#183a22;     --s-sent-ink:#69cf85;
+      --s-closed-bg:#1c3d28;   --s-closed-ink:#7cd699;
+      --overdue:#ff6b57; --duesoon:#e6b64d;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+      --bg:#11151c; --panel:#1a1f28; --panel-2:#20262f;
+      --ink:#e8ecf3; --ink-soft:#a6afc0; --ink-faint:#727d90;
+      --line:#2b323d; --line-strong:#3a424f;
+      --accent:#5b9bff; --accent-soft:#1d2a3f;
+      --s-notdue-bg:#262c36;   --s-notdue-ink:#9aa4b6;
+      --s-awaiting-bg:#1d2a3f; --s-awaiting-ink:#7bb0ff;
+      --s-received-bg:#123830; --s-received-ink:#4fd0b8;
+      --s-review-bg:#3a2f12;   --s-review-ink:#e6b64d;
+      --s-returned-bg:#3d201a; --s-returned-ink:#f0937e;
+      --s-sent-bg:#183a22;     --s-sent-ink:#69cf85;
+      --s-closed-bg:#1c3d28;   --s-closed-ink:#7cd699;
+      --overdue:#ff6b57; --duesoon:#e6b64d;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.45}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+  .wrap{max-width:1180px;margin:0 auto;padding-inline:18px;padding-block:0 56px}
+
+  header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%, transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .top-inner{max-width:1180px;margin:0 auto;padding:14px 18px 12px}
+  .brandline{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .logo{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;letter-spacing:.5px;font-size:20px;color:var(--ink);text-transform:uppercase;display:flex;align-items:center;gap:9px}
+  .logo .mark{width:22px;height:22px;border-radius:5px;background:var(--accent);display:inline-grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+  .tagline{color:var(--ink-faint);font-size:12.5px;letter-spacing:.3px}
+
+  .statusbar{margin-top:9px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;min-height:22px}
+  .savebadge{display:inline-flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-soft)}
+  .savebadge .dotp{width:8px;height:8px;border-radius:50%;background:var(--ink-faint)}
+  .savebadge.saving .dotp{background:var(--s-review-ink)}
+  .savebadge.saved .dotp{background:var(--s-sent-ink)}
+  .savebadge.error .dotp{background:var(--overdue)}
+  .sharehint{color:var(--ink-faint)} .sharehint b{color:var(--ink-soft)}
+  .ro{display:inline-flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-faint);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:3px 9px}
+  .authbtn{font-family:"IBM Plex Sans",sans-serif;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:7px;padding:5px 11px;cursor:pointer}
+  .authbtn:hover{background:var(--accent);color:#fff}
+  .authbtn.plain{background:transparent;color:var(--ink-soft);border-color:var(--line-strong)}
+  .authbtn.plain:hover{color:var(--ink);background:var(--panel-2)}
+  .who{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-faint)}
+
+  .cfgbanner{max-width:1180px;margin:14px auto 0;padding:14px 16px;background:var(--s-review-bg);border:1px solid var(--s-review-ink);border-radius:10px;color:var(--ink);font-size:13px}
+  .cfgbanner b{font-weight:700}
+  .cfgbanner code{font-family:"IBM Plex Mono",monospace;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px}
+
+  .tabs{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
+  .tab{font-family:"Barlow Semi Condensed",sans-serif;font-weight:600;letter-spacing:.3px;font-size:14px;border:1px solid var(--line-strong);background:var(--panel);color:var(--ink-soft);border-radius:8px;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.12s}
+  .tab .code{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-faint)}
+  .tab:hover{border-color:var(--accent)}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tab.active .code{color:rgba(255,255,255,.8)}
+  .tab.addproj{background:var(--accent-soft);color:var(--accent);border:1px dashed var(--accent)}
+  .tab.addproj:hover{background:var(--accent);color:#fff}
+
+  .empty{margin-top:40px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:44px 22px;box-shadow:var(--shadow)}
+  .empty .et{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:20px;letter-spacing:.3px;margin-bottom:6px}
+  .empty .ed{color:var(--ink-soft);font-size:13.5px;max-width:460px;margin:0 auto 18px}
+  .bigbtn{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;letter-spacing:.4px;font-size:15px;color:#fff;background:var(--accent);border:0;border-radius:9px;padding:11px 20px;cursor:pointer}
+  .bigbtn:hover{filter:brightness(1.05)}
+
+  .proj-head{margin-top:22px;display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap}
+  .proj-title{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:26px;letter-spacing:.3px}
+  .proj-sub{color:var(--ink-soft);font-size:13.5px;margin-top:6px;display:flex;align-items:center;flex-wrap:wrap}
+  .proj-sub .dot{color:var(--ink-faint);margin:0 7px}
+  .proj-sub b{color:var(--ink);font-weight:600}
+  .titleedit{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:24px;letter-spacing:.3px;color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;padding:4px 11px;min-width:280px;max-width:100%}
+  .proj-sub .metaedit{font-family:"IBM Plex Sans",sans-serif;font-size:12.5px;color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:3px 7px;margin:0 12px 6px 4px;max-width:160px}
+  .proj-sub .metaedit.ref{max-width:100px}
+  .proj-sub .metaedit.dt{max-width:150px;font-family:"IBM Plex Mono",monospace}
+  .delproj{font-family:"IBM Plex Sans",sans-serif;font-size:12px;font-weight:600;color:var(--s-returned-ink);background:var(--s-returned-bg);border:0;border-radius:6px;padding:5px 11px;cursor:pointer;margin-left:4px}
+  .delproj:hover{background:var(--s-returned-ink);color:#fff}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:18px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:13px 14px;box-shadow:var(--shadow)}
+  .kpi .n{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+  .kpi .l{font-size:11.5px;color:var(--ink-soft);margin-top:7px;text-transform:uppercase;letter-spacing:.6px}
+  .kpi.alert .n{color:var(--overdue)}
+  .kpi .stripe{height:3px;border-radius:3px;margin-top:11px;background:var(--line-strong)}
+  .kpi.ok .stripe{background:var(--s-sent-ink)}
+  .kpi.alert .stripe{background:var(--overdue)}
+  .kpi.mid .stripe{background:var(--s-review-ink)}
+
+  .progress-wrap{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 16px;box-shadow:var(--shadow)}
+  .progress-top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-soft);margin-bottom:9px}
+  .progress-top b{color:var(--ink);font-family:"IBM Plex Mono",monospace}
+  .bar{height:9px;border-radius:6px;background:var(--panel-2);overflow:hidden;display:flex}
+  .bar span{height:100%;display:block}
+  .bar .b-sent{background:var(--s-sent-ink)} .bar .b-review{background:var(--s-review-ink)}
+  .bar .b-received{background:var(--s-received-ink)} .bar .b-awaiting{background:var(--accent)}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:24px;flex-wrap:wrap}
+  .legend{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .legend .hint{font-size:12px;color:var(--ink-faint);margin-right:4px}
+  .pill{font-size:11.5px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;letter-spacing:.2px;border:1px solid transparent}
+  .p-notdue{background:var(--s-notdue-bg);color:var(--s-notdue-ink)}
+  .p-awaiting{background:var(--s-awaiting-bg);color:var(--s-awaiting-ink)}
+  .p-received{background:var(--s-received-bg);color:var(--s-received-ink)}
+  .p-review{background:var(--s-review-bg);color:var(--s-review-ink)}
+  .p-returned{background:var(--s-returned-bg);color:var(--s-returned-ink)}
+  .p-sent{background:var(--s-sent-bg);color:var(--s-sent-ink)}
+  .p-closed{background:var(--s-closed-bg);color:var(--s-closed-ink)}
+
+  .viewbox{display:flex;align-items:center;gap:9px}
+  .viewlabel{font-size:12px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.5px}
+  .viewswitch{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;font-family:"Barlow Semi Condensed",sans-serif;font-weight:600;font-size:13.5px}
+  .viewswitch button{border:0;background:var(--panel);color:var(--ink-soft);padding:6px 14px;cursor:pointer;font:inherit}
+  .viewswitch button:hover{color:var(--ink)}
+  .viewswitch button.on{background:var(--accent);color:#fff}
+  .modehint{margin-top:10px;font-size:12.5px;color:var(--ink-soft);background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:7px;padding:8px 12px}
+  .modehint b{color:var(--ink)}
+
+  .table-scroll{margin-top:12px;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;min-width:860px}
+  thead th{text-align:left;font-family:"Barlow Semi Condensed",sans-serif;font-weight:600;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-faint);padding:11px 14px;border-bottom:1px solid var(--line-strong);position:sticky;top:0;background:var(--panel)}
+  thead th.num{text-align:center}
+  .grouprow td{background:var(--panel-2);font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:12.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--ink-soft);padding:8px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .grouprow .gcount{color:var(--ink-faint);font-weight:500;font-family:"IBM Plex Mono",monospace;font-size:11px;margin-left:8px}
+  .addrow{float:right;font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12px;color:var(--accent);background:var(--accent-soft);border:0;border-radius:6px;padding:3px 11px;cursor:pointer;text-transform:none;letter-spacing:0}
+  .addrow:hover{background:var(--accent);color:#fff}
+  tbody tr.doc{border-bottom:1px solid var(--line)}
+  tbody tr.doc:last-child{border-bottom:0}
+  tbody td{padding:10px 14px;vertical-align:middle;font-size:13.5px}
+  .docname{font-weight:600}
+  .docname .stage{display:block;font-size:11.5px;color:var(--ink-faint);font-weight:400;margin-top:1px}
+  .lognamewrap{display:flex;align-items:flex-start;gap:9px}
+  .nmcol{flex:1 1 auto}
+  .rmrow{border:0;background:var(--s-returned-bg);color:var(--s-returned-ink);width:20px;height:20px;border-radius:5px;cursor:pointer;font-size:15px;line-height:1;display:grid;place-items:center;flex:0 0 auto;margin-top:1px}
+  .rmrow:hover{background:var(--s-returned-ink);color:#fff}
+  .nameedit{display:block;font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:13px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-strong);border-radius:5px;padding:3px 7px;max-width:220px;width:100%}
+  .stageedit{display:block;margin-top:4px;font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;color:var(--ink-soft);background:var(--panel-2);border:1px solid var(--line-strong);border-radius:5px;padding:3px 7px;max-width:200px;width:100%}
+  td.date{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.date .none{color:var(--ink-faint)}
+  td.date.overdue{color:var(--overdue);font-weight:500}
+  td.date.duesoon{color:var(--duesoon)}
+  .dateedit{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--panel-2);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);padding:3px 6px;max-width:150px}
+  .dateedit.overdue{border-color:var(--overdue);color:var(--overdue)}
+  .dateedit.duesoon{border-color:var(--duesoon)}
+  .flag{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600;display:block;margin-top:2px}
+  .flag.overdue{color:var(--overdue)} .flag.duesoon{color:var(--duesoon)}
+  td.rounds{text-align:center}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;background:var(--panel)}
+  .stepper .st-btn{border:0;background:var(--panel-2);color:var(--ink-soft);width:24px;height:26px;cursor:pointer;font-size:15px;line-height:1;font-family:inherit;display:grid;place-items:center;padding:0}
+  .stepper .st-btn:hover{background:var(--accent);color:#fff}
+  .stepper .st-n{min-width:28px;text-align:center;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink);padding:0 2px;border-inline:1px solid var(--line)}
+  .stepper .st-n.hot{color:var(--s-returned-ink);font-weight:600}
+  .roundstat{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-soft)}
+  .roundstat.hot{background:var(--s-returned-bg);color:var(--s-returned-ink);border-color:transparent}
+  .statusbtn{cursor:pointer;border:1px solid transparent;font:inherit}
+  .send-btn{font:inherit;font-size:12.5px;font-weight:600;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:7px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+  .send-btn:hover{background:var(--accent);color:#fff}
+  .sentwrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sent-on{font:inherit;font-size:12px;font-weight:600;color:var(--s-sent-ink);background:var(--s-sent-bg);border:0;border-radius:7px;padding:5px 9px;cursor:pointer}
+  .sent-on:hover{text-decoration:line-through}
+  .sent-static{font-size:12px;font-weight:600;color:var(--s-sent-ink);background:var(--s-sent-bg);border-radius:7px;padding:5px 9px}
+  .sent-date{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .notsent{color:var(--ink-faint)}
+  .closedtag{display:inline-block}
+  .file a{color:var(--accent);text-decoration:none;font-size:12.5px;display:inline-flex;align-items:center;gap:5px}
+  .file a:hover{text-decoration:underline}
+  .file .missing{color:var(--ink-faint);font-size:12px}
+  .onfile{font-size:12px;color:var(--s-received-ink);font-weight:500}
+  .fileedit{font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-strong);border-radius:5px;padding:3px 7px;max-width:170px;width:100%}
+  .filewrap{display:flex;flex-direction:column;gap:4px}
+  tr.doc.is-overdue{box-shadow:inset 3px 0 0 var(--overdue)}
+
+  .footer-note{margin-top:22px;font-size:12.5px;color:var(--ink-soft);line-height:1.6}
+  .footer-note b{color:var(--ink)}
+
+  /* sign-in modal */
+  .modal{position:fixed;inset:0;background:rgba(10,15,25,.55);display:grid;place-items:center;z-index:60;padding:18px}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);width:100%;max-width:360px;padding:22px}
+  .modal-card h3{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:19px;letter-spacing:.3px;margin:0 0 4px}
+  .modal-card p{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px}
+  .field{display:block;margin-bottom:12px}
+  .field span{display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+  .field input{width:100%;font-family:"IBM Plex Sans",sans-serif;font-size:14px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px}
+  .modal-err{font-size:12.5px;color:var(--overdue);min-height:18px;margin-bottom:8px}
+  .modal-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:4px}
+  .modal-actions button{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:13px;border-radius:8px;padding:9px 15px;cursor:pointer;border:1px solid var(--line-strong);background:var(--panel-2);color:var(--ink-soft)}
+  .modal-actions .primary{background:var(--accent);color:#fff;border-color:transparent}
+
+  @media (max-width:640px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .proj-title{font-size:22px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brandline">
+      <span class="logo"><span class="mark">◆</span> Steelbridge</span>
+      <span class="tagline">Project document tracking · ATAD (Vietnam) → Client (Sri Lanka)</span>
+    </div>
+    <div class="statusbar" id="statusbar"></div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+</header>
+
+<div class="cfgbanner" id="cfgBanner" hidden></div>
+
+<div class="wrap">
+  <div class="empty" id="emptyState" hidden></div>
+
+  <div id="detail" hidden>
+    <div class="proj-head">
+      <div>
+        <div class="proj-title" id="projTitle"></div>
+        <div class="proj-sub" id="projSub"></div>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="progress-wrap">
+      <div class="progress-top"><span>Progress to client</span><span><b id="progText"></b></span></div>
+      <div class="bar" id="bar"></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="legend">
+        <span class="hint">Statuses:</span>
+        <span class="pill p-notdue">Not due</span>
+        <span class="pill p-awaiting">Awaiting</span>
+        <span class="pill p-received">Received</span>
+        <span class="pill p-review">Under review</span>
+        <span class="pill p-returned">Returned to ATAD</span>
+        <span class="pill p-sent">Sent to client</span>
+        <span class="pill p-closed">Closed</span>
+      </div>
+      <div id="viewswitchWrap"></div>
+    </div>
+    <div class="modehint" id="modehint"></div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:230px">Document</th>
+            <th style="min-width:120px">Expected</th>
+            <th style="min-width:150px">Status</th>
+            <th style="min-width:120px">Received</th>
+            <th class="num" style="min-width:70px">Rounds</th>
+            <th style="min-width:130px">To client</th>
+            <th style="min-width:150px">File</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      <b>Files live in OneDrive / SharePoint.</b> Paste each document's link in the File column; opening it goes through your Microsoft login. Expected dates come from the project's Delivery Schedule. Overdue items flag automatically. Operator changes are saved to the database and appear live for everyone with the link.
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="signinModal" hidden>
+  <div class="modal-card">
+    <h3>Operator sign in</h3>
+    <p>Editing is limited to operators. Viewers don't need to sign in.</p>
+    <label class="field"><span>Email</span><input type="email" id="siEmail" autocomplete="username"></label>
+    <label class="field"><span>Password</span><input type="password" id="siPass" autocomplete="current-password"></label>
+    <div class="modal-err" id="siErr"></div>
+    <div class="modal-actions">
+      <button id="siCancel">Cancel</button>
+      <button class="primary" id="siGo">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ============================================================
+   CONFIG — paste your Supabase project values here
+   ============================================================ */
+const SUPABASE_URL      = "https://twpmemaycnabnmnlhgqc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3cG1lbWF5Y25hYm5tbmxoZ3FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NTYzNDcsImV4cCI6MjEwNTUzMjM0N30.SgMV3Mc1U_Iw4u-z5ikh5nU6cFBiqD2qf7e7mPh-4Kk";
+/* ============================================================ */
+
+const STATUS = {
+  notdue:   {label:'Not due',          cls:'p-notdue'},
+  awaiting: {label:'Awaiting',         cls:'p-awaiting'},
+  received: {label:'Received',         cls:'p-received'},
+  review:   {label:'Under review',     cls:'p-review'},
+  returned: {label:'Returned to ATAD', cls:'p-returned'},
+  sent:     {label:'Sent to client',   cls:'p-sent'},
+  closed:   {label:'Closed',           cls:'p-closed'}
+};
+const CYCLE_A = ['notdue','awaiting','received','review','returned'];
+const GROUP_ORDER = ['Master schedule','Commercial & contractual','Engineering & approvals','Quality & materials','Logistics'];
+const TEMPLATE = [
+  ['Master schedule','Delivery schedule',null],
+  ['Commercial & contractual','Sales agreement',null],
+  ['Commercial & contractual','Tri-party agreement',null],
+  ['Commercial & contractual','Letter of credit (LC)',null],
+  ['Commercial & contractual','Advance payment',null],
+  ['Engineering & approvals','Approval drawings',null],
+  ['Engineering & approvals','Calculation report','Stage 1'],
+  ['Engineering & approvals','Project specification',null],
+  ['Engineering & approvals','Column reactions',null],
+  ['Engineering & approvals','Base plate layout',null],
+  ['Quality & materials','Sample submission',null],
+  ['Quality & materials','Color approval',null],
+  ['Quality & materials','Material test certificate',null],
+  ['Quality & materials','Interim testing report',null],
+  ['Quality & materials','Warranties',null],
+  ['Logistics','Shipping documents','Container 1']
+];
+
+/* ---------- state ---------- */
+let projects = [];      // shared (in the database)
+let active = 0;         // local to this viewer
+let previewViewer = false;
+let canEdit = false;
+let ready = false;
+let sessionEmail = null;
+let saveClass = '', saveText = '';
+let pendingRemote = null;
+const isEditing = () => canEdit && !previewViewer;
+
+/* ---------- backend ---------- */
+const CONFIGURED = SUPABASE_URL.indexOf('YOUR-')===-1 && SUPABASE_ANON_KEY.indexOf('YOUR-')===-1;
+let supa = null, saveTimer = null;
+
+async function initBackend(){
+  if(!CONFIGURED){
+    document.getElementById('cfgBanner').hidden=false;
+    document.getElementById('cfgBanner').innerHTML='<b>Not connected yet.</b> Open <code>index.html</code> and paste your Supabase <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> into the CONFIG block near the bottom, then redeploy. Until then the tracker can’t load or save data.';
+    ready=true; render(); return;
+  }
+  supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  try{
+    const { data:{ session } } = await supa.auth.getSession();
+    applySession(session);
+    supa.auth.onAuthStateChange((_e, s)=>{ applySession(s); render(); });
+  }catch(e){}
+  await loadState();
+  subscribeRealtime();
+  setInterval(pollState, 15000);
+  ready=true; render();
+}
+function applySession(session){ canEdit = !!session; sessionEmail = session && session.user ? session.user.email : null; }
+
+async function loadState(){
+  try{
+    const { data, error } = await supa.from('tracker_state').select('data').eq('id',1).single();
+    if(!error && data && data.data && Array.isArray(data.data.projects)) projects = data.data.projects;
+  }catch(e){}
+}
+async function pollState(){
+  if(!supa) return;
+  try{
+    const { data, error } = await supa.from('tracker_state').select('data').eq('id',1).single();
+    if(!error && data && data.data && Array.isArray(data.data.projects)) applyRemote(data.data.projects);
+  }catch(e){}
+}
+function subscribeRealtime(){
+  try{
+    supa.channel('tracker-live')
+      .on('postgres_changes', {event:'*', schema:'public', table:'tracker_state', filter:'id=eq.1'},
+        payload=>{ const d = payload && payload.new && payload.new.data; if(d && Array.isArray(d.projects)) applyRemote(d.projects); })
+      .subscribe();
+  }catch(e){}
+}
+function isEditingInput(){ const el=document.activeElement; return el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA'); }
+function applyRemote(newProjects){
+  if(isEditingInput()){ pendingRemote=newProjects; return; }   // don't clobber an operator mid-edit
+  projects=newProjects;
+  if(active>=projects.length) active=projects.length-1;
+  if(active<0) active=0;
+  render();
+}
+document.addEventListener('focusout', ()=>{ setTimeout(()=>{ if(pendingRemote && !isEditingInput()){ const p=pendingRemote; pendingRemote=null; applyRemote(p); } },0); }, true);
+
+/* ---------- saving ---------- */
+function scheduleSave(){
+  if(!canEdit || !supa) return;
+  setSave('saving','Saving…');
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(doSave, 600);
+}
+async function doSave(){
+  if(!supa || !canEdit) return;
+  try{
+    const { error } = await supa.from('tracker_state').update({ data:{projects}, updated_at:new Date().toISOString() }).eq('id',1);
+    if(error) throw error;
+    setSave('saved','All changes saved');
+  }catch(e){ setSave('error','Couldn’t save — check sign-in / connection'); }
+}
+function setSave(cls,text){ saveClass=cls; saveText=text; renderStatus(); }
+
+/* ---------- auth UI ---------- */
+function openSignin(){ const m=document.getElementById('signinModal'); document.getElementById('siErr').textContent=''; document.getElementById('siPass').value=''; m.hidden=false; document.getElementById('siEmail').focus(); }
+function closeSignin(){ document.getElementById('signinModal').hidden=true; }
+async function doSignin(){
+  const email=document.getElementById('siEmail').value.trim();
+  const pass=document.getElementById('siPass').value;
+  const err=document.getElementById('siErr');
+  if(!email||!pass){ err.textContent='Enter email and password.'; return; }
+  err.textContent='Signing in…';
+  try{
+    const { error } = await supa.auth.signInWithPassword({ email, password: pass });
+    if(error){ err.textContent=error.message||'Sign-in failed.'; return; }
+    closeSignin(); render();
+  }catch(e){ err.textContent='Sign-in failed.'; }
+}
+async function doSignout(){ try{ await supa.auth.signOut(); }catch(e){} previewViewer=false; render(); }
+document.getElementById('siGo').onclick=doSignin;
+document.getElementById('siCancel').onclick=closeSignin;
+document.getElementById('siPass').addEventListener('keydown',e=>{ if(e.key==='Enter') doSignin(); });
+
+/* ---------- helpers ---------- */
+function D(iso){return iso?new Date(iso+'T00:00:00'):null;}
+function fmt(iso){ if(!iso) return '<span class="none">—</span>'; const d=D(iso); return String(d.getDate()).padStart(2,'0')+' '+d.toLocaleString('en',{month:'short'})+' '+d.getFullYear(); }
+function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+const TODAY = D(todayISO());
+function daysBetween(a,b){return Math.round((a-b)/86400000);}
+function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function mkDoc(group,name,stage,expected,status,received,rounds,toClient,file){
+  return {group,name,stage:stage||null,expected:expected||'',status:status||'notdue',received:received||'',rounds:rounds||0,toClient:toClient||'',file:file||'',sent:false};
+}
+function overdueState(doc){
+  if(!doc.expected) return null;
+  if(doc.sent) return null;
+  if(['received','review','returned'].includes(doc.status)) return null;
+  const diff = daysBetween(D(doc.expected), TODAY);
+  if(diff < 0) return 'overdue';
+  if(diff <= 7) return 'duesoon';
+  return null;
+}
+
+/* ---------- mutations ---------- */
+function advanceA(i){ const d=projects[active].docs[i]; const c=CYCLE_A.indexOf(d.status); const n=CYCLE_A[(c+1)%CYCLE_A.length]; if(n==='received'&&!d.received)d.received=todayISO(); d.status=n; render(); scheduleSave(); }
+function setSent(i,val){ const d=projects[active].docs[i]; d.sent=val; if(val){ if(!d.received)d.received=todayISO(); if(!d.toClient)d.toClient=todayISO(); } else d.toClient=''; render(); scheduleSave(); }
+function changeRounds(i,delta){ const d=projects[active].docs[i]; d.rounds=Math.max(0,(d.rounds||0)+delta); render(); scheduleSave(); }
+function addRow(group){
+  const p=projects[active]; let last=-1; p.docs.forEach((d,i)=>{ if(d.group===group) last=i; });
+  const isLog=group==='Logistics';
+  const nd=mkDoc(group, isLog?'Shipping documents':'New document', isLog?'New shipping document':'', '','notdue','',0,'',''); nd.custom=true;
+  if(last>=0) p.docs.splice(last+1,0,nd); else p.docs.push(nd);
+  render(); scheduleSave();
+}
+function removeRow(i){ projects[active].docs.splice(i,1); render(); scheduleSave(); }
+function addProject(){
+  const docs=TEMPLATE.map(t=>mkDoc(t[0],t[1],t[2]||null,'','notdue','',0,'',''));
+  projects.push({id:'P-'+(1000+projects.length+1), name:'New project', client:'', value:'', po:'', docs});
+  active=projects.length-1; render(); scheduleSave();
+}
+function deleteProject(){ if(projects.length<=0) return; projects.splice(active,1); active=Math.max(0,active-1); render(); scheduleSave(); }
+
+/* ---------- render ---------- */
+function counts(p){
+  const c={total:p.docs.length,received:0,awaiting:0,overdue:0,sent:0};
+  p.docs.forEach(d=>{
+    if(d.sent || ['received','review','returned'].includes(d.status)) c.received++;
+    if(!d.sent && (d.status==='awaiting'||d.status==='notdue')) c.awaiting++;
+    if(d.sent) c.sent++;
+    if(overdueState(d)==='overdue') c.overdue++;
+  });
+  return c;
+}
+function renderStatus(){
+  const el=document.getElementById('statusbar');
+  if(!ready){ el.innerHTML='<span class="who">Connecting…</span>'; return; }
+  if(!CONFIGURED){ el.innerHTML=''; return; }
+  if(canEdit){
+    const badge = '<span class="savebadge '+saveClass+'"><span class="dotp"></span>'+esc(saveText||'All changes saved')+'</span>';
+    el.innerHTML = badge +
+      '<span class="who">'+esc(sessionEmail||'operator')+'</span>' +
+      '<button class="authbtn plain" id="soBtn">Sign out</button>' +
+      '<span class="sharehint">Share the site link with staff to <b>view</b>; only signed-in operators can edit.</span>';
+    const b=document.getElementById('soBtn'); if(b) b.onclick=doSignout;
+  } else {
+    el.innerHTML = '<span class="ro">● Live status · read-only</span><button class="authbtn" id="siBtn">Operator sign in</button>';
+    const b=document.getElementById('siBtn'); if(b) b.onclick=openSignin;
+  }
+}
+function renderTabs(){
+  const el=document.getElementById('tabs'); el.innerHTML='';
+  projects.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='tab'+(i===active?' active':'');
+    const short=((p.name||'Untitled').split('—')[0].trim())||'Untitled';
+    b.innerHTML=esc(short)+' <span class="code">'+esc(p.id)+'</span>';
+    b.onclick=()=>{active=i;render();};
+    el.appendChild(b);
+  });
+  if(isEditing()){
+    const add=document.createElement('button');
+    add.className='tab addproj'; add.textContent='+ New project'; add.onclick=addProject;
+    el.appendChild(add);
+  }
+}
+function renderEmpty(){
+  const el=document.getElementById('emptyState');
+  if(!CONFIGURED){ el.innerHTML='<div class="et">Waiting for setup</div><div class="ed">Add your Supabase keys to connect the tracker.</div>'; return; }
+  if(isEditing()){
+    el.innerHTML='<div class="et">No projects yet</div><div class="ed">Add your first project to load the standard 15-document checklist, then fill in the client, dates and file links.</div><button class="bigbtn" id="emptyAdd">+ New project</button>';
+    const b=document.getElementById('emptyAdd'); if(b) b.onclick=addProject;
+  } else {
+    el.innerHTML='<div class="et">No projects yet</div><div class="ed">Nothing has been added to the tracker yet. Check back once a project is set up, or sign in as an operator to add one.</div>';
+  }
+}
+function renderHead(){
+  const p=projects[active];
+  const t=document.getElementById('projTitle'), s=document.getElementById('projSub');
+  if(isEditing()){
+    t.innerHTML='<input class="titleedit" value="'+esc(p.name)+'" data-pf="name" placeholder="Project name">';
+    s.innerHTML=
+      'Client <input class="metaedit" value="'+esc(p.client)+'" data-pf="client" placeholder="client name">'+
+      'Value <input class="metaedit" value="'+esc(p.value)+'" data-pf="value" placeholder="USD …">'+
+      'PO <input type="date" class="metaedit dt" value="'+esc(p.po||'')+'" data-pf="po">'+
+      'Ref <input class="metaedit ref" value="'+esc(p.id)+'" data-pf="id">'+
+      (projects.length>1?'<button class="delproj" id="delproj">Delete project</button>':'');
+    const ti=t.querySelector('[data-pf]'); ti.oninput=e=>{ p.name=e.target.value; renderTabs(); }; ti.onchange=scheduleSave;
+    s.querySelectorAll('[data-pf]').forEach(inp=>{ inp.oninput=()=>{ p[inp.dataset.pf]=inp.value; if(inp.dataset.pf==='id') renderTabs(); }; inp.onchange=scheduleSave; });
+    const del=document.getElementById('delproj'); if(del) del.onclick=deleteProject;
+  } else {
+    t.textContent=p.name||'Untitled project';
+    s.innerHTML='Client: <b>'+esc(p.client||'—')+'</b><span class="dot">•</span>Value: <b>'+esc(p.value||'—')+'</b><span class="dot">•</span>PO: <b>'+fmt(p.po)+'</b><span class="dot">•</span>Ref: <b>'+esc(p.id)+'</b>';
+  }
+}
+function renderKpis(){
+  const c=counts(projects[active]);
+  const cards=[{n:c.total,l:'Documents',cls:''},{n:c.received,l:'Received',cls:'ok'},{n:c.awaiting,l:'Awaiting',cls:'mid'},{n:c.overdue,l:'Overdue',cls:'alert'},{n:c.sent,l:'Sent to client',cls:'ok'}];
+  document.getElementById('kpis').innerHTML=cards.map(k=>'<div class="kpi '+k.cls+'"><div class="n">'+k.n+'</div><div class="l">'+k.l+'</div><div class="stripe"></div></div>').join('');
+}
+function renderProgress(){
+  const p=projects[active], t=p.docs.length||1; let sent=0,review=0,received=0,awaiting=0;
+  p.docs.forEach(d=>{ if(d.sent)sent++; else if(d.status==='review'||d.status==='returned')review++; else if(d.status==='received')received++; else if(d.status==='awaiting')awaiting++; });
+  const pct=v=>(v/t*100).toFixed(1)+'%';
+  document.getElementById('bar').innerHTML='<span class="b-sent" style="width:'+pct(sent)+'"></span><span class="b-review" style="width:'+pct(review)+'"></span><span class="b-received" style="width:'+pct(received)+'"></span><span class="b-awaiting" style="width:'+pct(awaiting)+'"></span>';
+  document.getElementById('progText').textContent=sent+' / '+p.docs.length+' delivered to client';
+}
+function renderViewSwitch(){
+  const wrap=document.getElementById('viewswitchWrap');
+  if(!canEdit){ wrap.innerHTML=''; document.getElementById('modehint').innerHTML='<b>Live status</b> — this is the read-only view your team sees.'; return; }
+  wrap.innerHTML='<div class="viewbox"><span class="viewlabel">Preview as</span><div class="viewswitch"><button data-mode="op">Operator</button><button data-mode="view">Viewer</button></div></div>';
+  wrap.querySelectorAll('button').forEach(b=>{ b.classList.toggle('on',(b.dataset.mode==='op')!==previewViewer); b.onclick=()=>{ previewViewer=(b.dataset.mode==='view'); render(); }; });
+  document.getElementById('modehint').innerHTML = previewViewer
+    ? '<b>Viewer preview</b> — exactly what staff see: read-only, no controls, no file links. Switch back to Operator to edit.'
+    : '<b>Operator view</b> — your edits save to the database and update everyone’s screen.';
+}
+function renderTable(){
+  const p=projects[active]; const tb=document.getElementById('tbody'); tb.innerHTML='';
+  const present=[...new Set(p.docs.map(d=>d.group))];
+  const groups=GROUP_ORDER.filter(g=>g==='Logistics'||present.includes(g));
+  present.forEach(g=>{ if(!groups.includes(g)) groups.push(g); });
+  groups.forEach(g=>{
+    const items=p.docs.map((d,idx)=>({d,idx})).filter(x=>x.d.group===g);
+    const gr=document.createElement('tr'); gr.className='grouprow';
+    const addBtn=isEditing()?'<button class="addrow" data-addgroup="'+encodeURIComponent(g)+'">+ Add '+(g==='Logistics'?'shipping document':'document')+'</button>':'';
+    gr.innerHTML='<td colspan="7">'+g+'<span class="gcount">'+items.length+' item'+(items.length!==1?'s':'')+'</span>'+addBtn+'</td>';
+    tb.appendChild(gr);
+    items.forEach(({d,idx})=>{
+      const od=overdueState(d);
+      const tr=document.createElement('tr'); tr.className='doc'+(od==='overdue'?' is-overdue':'');
+      const st=d.sent?STATUS.closed:STATUS[d.status];
+      const expFlag = od==='overdue'?'<span class="flag overdue">Overdue '+Math.abs(daysBetween(D(d.expected),TODAY))+'d</span>':od==='duesoon'?'<span class="flag duesoon">Due in '+daysBetween(D(d.expected),TODAY)+'d</span>':'';
+      const ed=isEditing();
+      const expCell = ed ? '<input type="date" class="dateedit '+(od||'')+'" value="'+esc(d.expected)+'" data-exp="'+idx+'">'+expFlag : fmt(d.expected)+expFlag;
+      let stCell;
+      if(d.sent) stCell='<span class="pill p-closed closedtag">Closed</span>';
+      else if(ed) stCell='<button class="pill statusbtn '+st.cls+'" data-a="'+idx+'" title="Click to advance status">'+st.label+'</button>';
+      else stCell='<span class="pill '+st.cls+'">'+st.label+'</span>';
+      const recCell = ed ? '<input type="date" class="dateedit" value="'+esc(d.received)+'" data-recv="'+idx+'">' : fmt(d.received);
+      const roundsCell = ed
+        ? '<div class="stepper" title="Correction rounds with ATAD"><button class="st-btn" data-rm="'+idx+'">−</button><span class="st-n'+(d.rounds>0?' hot':'')+'">'+d.rounds+'</span><button class="st-btn" data-rp="'+idx+'">+</button></div>'
+        : '<span class="roundstat'+(d.rounds>0?' hot':'')+'">'+d.rounds+'</span>';
+      let clientCell;
+      if(d.sent){
+        clientCell = ed ? '<div class="sentwrap"><button class="sent-on" data-unsent="'+idx+'" title="Click to undo">✓ Sent</button><span class="sent-date">'+fmt(d.toClient)+'</span></div>' : '<div class="sentwrap"><span class="sent-static">✓ Sent</span><span class="sent-date">'+fmt(d.toClient)+'</span></div>';
+      } else { clientCell = ed ? '<button class="send-btn" data-send="'+idx+'">Send to client →</button>' : '<span class="notsent">—</span>'; }
+      let fileCell;
+      if(ed){ const open=d.file?'<a href="'+esc(d.file)+'" target="_blank" rel="noopener">Open ↗</a>':''; fileCell='<div class="filewrap"><input class="fileedit" value="'+esc(d.file)+'" data-file="'+idx+'" placeholder="paste OneDrive / SharePoint link">'+open+'</div>'; }
+      else { fileCell = d.file ? '<span class="onfile">on file</span>' : '<span class="missing">—</span>'; }
+      let nameCell;
+      if(ed && d.custom){ nameCell='<div class="lognamewrap"><button class="rmrow" data-rm-row="'+idx+'" title="Remove this row">×</button><div class="nmcol"><input class="nameedit" value="'+esc(d.name)+'" data-name="'+idx+'" placeholder="Document name, e.g. RFI-001"><input class="stageedit" value="'+esc(d.stage||'')+'" data-stage="'+idx+'" placeholder="note / label (optional)"></div></div>'; }
+      else if(ed && d.group==='Logistics'){ nameCell='<div class="lognamewrap"><button class="rmrow" data-rm-row="'+idx+'" title="Remove this row">×</button><div class="docname">'+esc(d.name)+'<input class="stageedit" value="'+esc(d.stage||'')+'" data-stage="'+idx+'" placeholder="label, e.g. Container 1 of 3"></div></div>'; }
+      else { nameCell='<span class="docname">'+esc(d.name)+(d.stage?'<span class="stage">'+esc(d.stage)+'</span>':'')+'</span>'; }
+      tr.innerHTML='<td>'+nameCell+'</td><td class="date '+(ed?'':(od||''))+'">'+expCell+'</td><td>'+stCell+'</td><td class="date">'+recCell+'</td><td class="rounds">'+roundsCell+'</td><td>'+clientCell+'</td><td class="file">'+fileCell+'</td>';
+      tb.appendChild(tr);
+    });
+  });
+  tb.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>advanceA(+b.dataset.a));
+  tb.querySelectorAll('[data-send]').forEach(b=>b.onclick=()=>setSent(+b.dataset.send,true));
+  tb.querySelectorAll('[data-unsent]').forEach(b=>b.onclick=()=>setSent(+b.dataset.unsent,false));
+  tb.querySelectorAll('[data-rp]').forEach(b=>b.onclick=()=>changeRounds(+b.dataset.rp,1));
+  tb.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>changeRounds(+b.dataset.rm,-1));
+  tb.querySelectorAll('[data-addgroup]').forEach(b=>b.onclick=()=>addRow(decodeURIComponent(b.dataset.addgroup)));
+  tb.querySelectorAll('[data-rm-row]').forEach(b=>b.onclick=()=>removeRow(+b.dataset.rmRow));
+  tb.querySelectorAll('[data-exp]').forEach(inp=>inp.onchange=()=>{ if(inp.value) projects[active].docs[+inp.dataset.exp].expected=inp.value; render(); scheduleSave(); });
+  tb.querySelectorAll('[data-recv]').forEach(inp=>inp.onchange=()=>{ projects[active].docs[+inp.dataset.recv].received=inp.value; render(); scheduleSave(); });
+  tb.querySelectorAll('[data-stage]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.stage].stage=inp.value; }; inp.onchange=scheduleSave; });
+  tb.querySelectorAll('[data-name]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.name].name=inp.value; }; inp.onchange=scheduleSave; });
+  tb.querySelectorAll('[data-file]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.file].file=inp.value.trim(); }; inp.onchange=scheduleSave; });
+}
+function render(){
+  renderStatus(); renderTabs();
+  const detail=document.getElementById('detail'), empty=document.getElementById('emptyState');
+  if(projects.length===0){ detail.hidden=true; empty.hidden=false; renderEmpty(); return; }
+  if(active>=projects.length) active=projects.length-1;
+  if(active<0) active=0;
+  empty.hidden=true; detail.hidden=false;
+  renderHead(); renderKpis(); renderProgress(); renderViewSwitch(); renderTable();
+}
+
+render();
+initBackend();
+</script>
+</body>
+</html>
