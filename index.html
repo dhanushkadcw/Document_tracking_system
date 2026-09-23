@@ -180,6 +180,14 @@
   .dateedit{font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--panel-2);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);padding:3px 6px;max-width:150px}
   .dateedit.overdue{border-color:var(--overdue);color:var(--overdue)}
   .dateedit.duesoon{border-color:var(--duesoon)}
+  .pairwrap{display:flex;align-items:center;gap:8px}
+  .paircol{display:flex;flex-direction:column;gap:3px}
+  .pairrow{display:flex;align-items:center;gap:6px}
+  .plab{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-faint);width:46px;flex:0 0 auto}
+  .pairrow .dateedit{max-width:130px}
+  .delaybox{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;color:#fff;background:var(--overdue);border-radius:5px;padding:2px 6px;white-space:nowrap;flex:0 0 auto}
+  .pairtext{display:flex;flex-direction:column;gap:2px;font-family:"IBM Plex Mono",monospace;font-size:11.5px}
+  .pairtext .pl{color:var(--ink-faint)} .pairtext .pl b{color:var(--ink-soft);font-weight:500}
   .flag{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:600;display:block;margin-top:2px}
   .flag.overdue{color:var(--overdue)} .flag.duesoon{color:var(--duesoon)}
   td.rounds{text-align:center}
@@ -283,9 +291,9 @@
         <thead>
           <tr>
             <th style="min-width:230px">Document</th>
-            <th style="min-width:120px">Expected</th>
+            <th style="min-width:205px">Client Approval</th>
             <th style="min-width:150px">Status</th>
-            <th style="min-width:120px">Received</th>
+            <th style="min-width:205px">Receiving from ATAD</th>
             <th class="num" style="min-width:70px">Rounds</th>
             <th style="min-width:130px">To client</th>
             <th style="min-width:150px">File</th>
@@ -296,7 +304,7 @@
     </div>
 
     <div class="footer-note">
-      <b>Files live in OneDrive / SharePoint.</b> Paste each document's link in the File column; opening it goes through your Microsoft login. Expected dates come from the project's Delivery Schedule. Overdue items flag automatically. Operator changes are saved to the database and appear live for everyone with the link.
+      <b>Files live in OneDrive / SharePoint.</b> Paste each document's link in the File column; opening it goes through your Microsoft login. Planned dates come from the project's Delivery Schedule; actual dates are entered as each stage happens. Any gap between planned and actual shows a red delay badge. Operator changes are saved to the database and appear live for everyone with the link.
     </div>
   </div>
 </div>
@@ -391,7 +399,7 @@ function applySession(session){ canEdit = !!session; sessionEmail = session && s
 async function loadState(){
   try{
     const { data, error } = await supa.from('tracker_state').select('data').eq('id',1).single();
-    if(!error && data && data.data && Array.isArray(data.data.projects)) projects = data.data.projects;
+    if(!error && data && data.data && Array.isArray(data.data.projects)){ projects = data.data.projects; migrateProjects(); }
   }catch(e){}
 }
 async function pollState(){
@@ -412,7 +420,7 @@ function subscribeRealtime(){
 function isEditingInput(){ const el=document.activeElement; return el && (el.tagName==='INPUT'||el.tagName==='TEXTAREA'); }
 function applyRemote(newProjects){
   if(isEditingInput()){ pendingRemote=newProjects; return; }   // don't clobber an operator mid-edit
-  projects=newProjects;
+  projects=newProjects; migrateProjects();
   if(active>=projects.length) active=projects.length-1;
   if(active<0) active=0;
   render();
@@ -463,22 +471,35 @@ function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.get
 const TODAY = D(todayISO());
 function daysBetween(a,b){return Math.round((a-b)/86400000);}
 function esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
-function mkDoc(group,name,stage,expected,status,received,rounds,toClient,file){
-  return {group,name,stage:stage||null,expected:expected||'',status:status||'notdue',received:received||'',rounds:rounds||0,toClient:toClient||'',file:file||'',sent:false};
+function mkDoc(group,name,stage){
+  return {group,name,stage:stage||null,status:'notdue',rounds:0,sent:false,
+    atadPlanned:'',atadActual:'',clientAppPlanned:'',clientAppActual:'',toClient:'',file:''};
 }
-function overdueState(doc){
-  if(!doc.expected) return null;
-  if(doc.sent) return null;
-  if(['received','review','returned'].includes(doc.status)) return null;
-  const diff = daysBetween(D(doc.expected), TODAY);
-  if(diff < 0) return 'overdue';
-  if(diff <= 7) return 'duesoon';
-  return null;
+function pairLate(planned, actual){
+  if(!planned) return null;
+  const P=D(planned);
+  if(actual){ const d=daysBetween(D(actual),P); return d>0?d:0; }
+  const d=daysBetween(TODAY,P); return d>0?d:0;
+}
+function runningLate(planned, actual){ return !!(planned && !actual && daysBetween(TODAY,D(planned))>0); }
+function docOverdue(d){ return runningLate(d.atadPlanned,d.atadActual) || runningLate(d.clientAppPlanned,d.clientAppActual); }
+function migrateProjects(){ projects.forEach(p=>p.docs&&p.docs.forEach(d=>{ if(d.atadPlanned===undefined){ d.atadPlanned=''; d.atadActual=d.received||''; d.clientAppPlanned=d.expected||''; d.clientAppActual=''; if(d.toClient===undefined) d.toClient=''; delete d.expected; delete d.received; } })); }
+function pairCell(d, idx, pKey, aKey, ed){
+  const planned=d[pKey], actual=d[aKey];
+  const late=pairLate(planned, actual);
+  const badge=(late&&late>0)?'<span class="delaybox" title="Delay between planned and actual">'+late+'d late</span>':'';
+  if(ed){
+    return '<div class="pairwrap"><div class="paircol">'+
+      '<div class="pairrow"><span class="plab">Planned</span><input type="date" class="dateedit" value="'+esc(planned)+'" data-dfield="'+pKey+'" data-di="'+idx+'"></div>'+
+      '<div class="pairrow"><span class="plab">Actual</span><input type="date" class="dateedit'+(late>0?' overdue':'')+'" value="'+esc(actual)+'" data-dfield="'+aKey+'" data-di="'+idx+'"></div>'+
+      '</div>'+badge+'</div>';
+  }
+  return '<div class="pairwrap"><div class="pairtext"><span class="pl">Planned <b>'+(planned?fmt(planned):'—')+'</b></span><span class="pl">Actual <b>'+(actual?fmt(actual):'—')+'</b></span></div>'+badge+'</div>';
 }
 
 /* ---------- mutations ---------- */
-function advanceA(i){ const d=projects[active].docs[i]; const c=CYCLE_A.indexOf(d.status); const n=CYCLE_A[(c+1)%CYCLE_A.length]; if(n==='received'&&!d.received)d.received=todayISO(); d.status=n; render(); scheduleSave(); }
-function setSent(i,val){ const d=projects[active].docs[i]; d.sent=val; if(val){ if(!d.received)d.received=todayISO(); if(!d.toClient)d.toClient=todayISO(); } else d.toClient=''; render(); scheduleSave(); }
+function advanceA(i){ const d=projects[active].docs[i]; const c=CYCLE_A.indexOf(d.status); const n=CYCLE_A[(c+1)%CYCLE_A.length]; d.status=n; render(); scheduleSave(); }
+function setSent(i,val){ projects[active].docs[i].sent=val; render(); scheduleSave(); }
 function changeRounds(i,delta){ const d=projects[active].docs[i]; d.rounds=Math.max(0,(d.rounds||0)+delta); render(); scheduleSave(); }
 function addRow(group){
   const p=projects[active]; let last=-1; p.docs.forEach((d,i)=>{ if(d.group===group) last=i; });
@@ -502,7 +523,7 @@ function counts(p){
     if(d.sent || ['received','review','returned'].includes(d.status)) c.received++;
     if(!d.sent && (d.status==='awaiting'||d.status==='notdue')) c.awaiting++;
     if(d.sent) c.sent++;
-    if(overdueState(d)==='overdue') c.overdue++;
+    if(docOverdue(d)) c.overdue++;
   });
   return c;
 }
@@ -600,24 +621,29 @@ function renderTable(){
     gr.innerHTML='<td colspan="7">'+g+'<span class="gcount">'+items.length+' item'+(items.length!==1?'s':'')+'</span>'+addBtn+'</td>';
     tb.appendChild(gr);
     items.forEach(({d,idx})=>{
-      const od=overdueState(d);
-      const tr=document.createElement('tr'); tr.className='doc'+(od==='overdue'?' is-overdue':'');
+      const tr=document.createElement('tr'); tr.className='doc'+(docOverdue(d)?' is-overdue':'');
       const st=d.sent?STATUS.closed:STATUS[d.status];
-      const expFlag = od==='overdue'?'<span class="flag overdue">Overdue '+Math.abs(daysBetween(D(d.expected),TODAY))+'d</span>':od==='duesoon'?'<span class="flag duesoon">Due in '+daysBetween(D(d.expected),TODAY)+'d</span>':'';
       const ed=isEditing();
-      const expCell = ed ? '<input type="date" class="dateedit '+(od||'')+'" value="'+esc(d.expected)+'" data-exp="'+idx+'">'+expFlag : fmt(d.expected)+expFlag;
+      const clientAppCell = pairCell(d, idx, 'clientAppPlanned', 'clientAppActual', ed);
+      const atadCell = pairCell(d, idx, 'atadPlanned', 'atadActual', ed);
       let stCell;
       if(d.sent) stCell='<span class="pill p-closed closedtag">Closed</span>';
       else if(ed) stCell='<button class="pill statusbtn '+st.cls+'" data-a="'+idx+'" title="Click to advance status">'+st.label+'</button>';
       else stCell='<span class="pill '+st.cls+'">'+st.label+'</span>';
-      const recCell = ed ? '<input type="date" class="dateedit" value="'+esc(d.received)+'" data-recv="'+idx+'">' : fmt(d.received);
       const roundsCell = ed
         ? '<div class="stepper" title="Correction rounds with ATAD"><button class="st-btn" data-rm="'+idx+'">−</button><span class="st-n'+(d.rounds>0?' hot':'')+'">'+d.rounds+'</span><button class="st-btn" data-rp="'+idx+'">+</button></div>'
         : '<span class="roundstat'+(d.rounds>0?' hot':'')+'">'+d.rounds+'</span>';
       let clientCell;
-      if(d.sent){
-        clientCell = ed ? '<div class="sentwrap"><button class="sent-on" data-unsent="'+idx+'" title="Click to undo">✓ Sent</button><span class="sent-date">'+fmt(d.toClient)+'</span></div>' : '<div class="sentwrap"><span class="sent-static">✓ Sent</span><span class="sent-date">'+fmt(d.toClient)+'</span></div>';
-      } else { clientCell = ed ? '<button class="send-btn" data-send="'+idx+'">Send to client →</button>' : '<span class="notsent">—</span>'; }
+      if(ed){
+        const dbox='<input type="date" class="dateedit" value="'+esc(d.toClient)+'" data-dfield="toClient" data-di="'+idx+'" title="Date sent to client">';
+        clientCell = d.sent
+          ? '<div class="sentwrap"><button class="sent-on" data-unsent="'+idx+'" title="Click to undo">✓ Sent</button>'+dbox+'</div>'
+          : '<div class="sentwrap"><button class="send-btn" data-send="'+idx+'">Send to client →</button>'+dbox+'</div>';
+      } else {
+        clientCell = d.sent
+          ? '<div class="sentwrap"><span class="sent-static">✓ Sent</span><span class="sent-date">'+(d.toClient?fmt(d.toClient):'—')+'</span></div>'
+          : (d.toClient ? '<span class="sent-date">'+fmt(d.toClient)+'</span>' : '<span class="notsent">—</span>');
+      }
       let fileCell;
       if(ed){ const open=d.file?'<a href="'+esc(d.file)+'" target="_blank" rel="noopener">Open ↗</a>':''; fileCell='<div class="filewrap"><input class="fileedit" value="'+esc(d.file)+'" data-file="'+idx+'" placeholder="paste OneDrive / SharePoint link">'+open+'</div>'; }
       else { fileCell = d.file ? '<span class="onfile">on file</span>' : '<span class="missing">—</span>'; }
@@ -625,7 +651,7 @@ function renderTable(){
       if(ed && d.custom){ nameCell='<div class="lognamewrap"><button class="rmrow" data-rm-row="'+idx+'" title="Remove this row">×</button><div class="nmcol"><input class="nameedit" value="'+esc(d.name)+'" data-name="'+idx+'" placeholder="Document name, e.g. RFI-001"><input class="stageedit" value="'+esc(d.stage||'')+'" data-stage="'+idx+'" placeholder="note / label (optional)"></div></div>'; }
       else if(ed && d.group==='Logistics'){ nameCell='<div class="lognamewrap"><button class="rmrow" data-rm-row="'+idx+'" title="Remove this row">×</button><div class="docname">'+esc(d.name)+'<input class="stageedit" value="'+esc(d.stage||'')+'" data-stage="'+idx+'" placeholder="label, e.g. Container 1 of 3"></div></div>'; }
       else { nameCell='<span class="docname">'+esc(d.name)+(d.stage?'<span class="stage">'+esc(d.stage)+'</span>':'')+'</span>'; }
-      tr.innerHTML='<td>'+nameCell+'</td><td class="date '+(ed?'':(od||''))+'">'+expCell+'</td><td>'+stCell+'</td><td class="date">'+recCell+'</td><td class="rounds">'+roundsCell+'</td><td>'+clientCell+'</td><td class="file">'+fileCell+'</td>';
+      tr.innerHTML='<td>'+nameCell+'</td><td>'+clientAppCell+'</td><td>'+stCell+'</td><td>'+atadCell+'</td><td class="rounds">'+roundsCell+'</td><td>'+clientCell+'</td><td class="file">'+fileCell+'</td>';
       tb.appendChild(tr);
     });
   });
@@ -636,8 +662,7 @@ function renderTable(){
   tb.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>changeRounds(+b.dataset.rm,-1));
   tb.querySelectorAll('[data-addgroup]').forEach(b=>b.onclick=()=>addRow(decodeURIComponent(b.dataset.addgroup)));
   tb.querySelectorAll('[data-rm-row]').forEach(b=>b.onclick=()=>removeRow(+b.dataset.rmRow));
-  tb.querySelectorAll('[data-exp]').forEach(inp=>inp.onchange=()=>{ if(inp.value) projects[active].docs[+inp.dataset.exp].expected=inp.value; render(); scheduleSave(); });
-  tb.querySelectorAll('[data-recv]').forEach(inp=>inp.onchange=()=>{ projects[active].docs[+inp.dataset.recv].received=inp.value; render(); scheduleSave(); });
+  tb.querySelectorAll('[data-dfield]').forEach(inp=>inp.onchange=()=>{ projects[active].docs[+inp.dataset.di][inp.dataset.dfield]=inp.value; render(); scheduleSave(); });
   tb.querySelectorAll('[data-stage]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.stage].stage=inp.value; }; inp.onchange=scheduleSave; });
   tb.querySelectorAll('[data-name]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.name].name=inp.value; }; inp.onchange=scheduleSave; });
   tb.querySelectorAll('[data-file]').forEach(inp=>{ inp.oninput=()=>{ projects[active].docs[+inp.dataset.file].file=inp.value.trim(); }; inp.onchange=scheduleSave; });
